@@ -3,240 +3,252 @@ from phonenumbers import carrier, geocoder, timezone
 import csv
 import os
 import requests
+import time
+import sys
 from io import StringIO
-from colorama import init, Fore, Back, Style
-import random
+from colorama import init, Fore, Style, Back
 
 # Инициализация colorama
 init(autoreset=True)
 
-# ========== ССЫЛКА НА ТВОЙ CSV С ГИТХАБА ==========
-GITHUB_CSV_URL = "https://raw.githubusercontent.com/твой-логин/твой-репозиторий/main/doxbar.csv"
+# ========== ТЫ ВСТАВЛЯЕШЬ СВОЮ ССЫЛКУ ЗДЕСЬ ==========
+MY_CSV_URL = "https://raw.githubusercontent.com/твой-логин/твой-репозиторий/main/твой-файл.csv"
+# ====================================================
 
-# ========== ГРАДИЕНТНЫЕ ЦВЕТА (ЗЕЛЁНЫЙ) ==========
-GREEN_GRADIENT = [
-    Fore.LIGHTBLACK_EX + Style.BRIGHT,  # Тёмно-серый (для контраста)
-    Fore.GREEN,                          # Зелёный
-    Fore.LIGHTGREEN_EX,                   # Светло-зелёный
-    Fore.GREEN + Style.BRIGHT,            # Ярко-зелёный
-    Fore.LIGHTGREEN_EX + Style.BRIGHT,    # Очень светлый
-]
+# ========== ТВОЙ РИСУНОК ==========
+YOUR_ASCII = """
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠔⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⡒⢄⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⢀⡖⠁⣸⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣧⠈⢳⣄⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⢠⡟⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⡄⠀⢹⣆⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⢠⡿⠀⠀⢠⡗⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⢻⡆⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⣾⠁⠀⠀⢸⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠈⣯⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢰⡞⠀⠀⠀⠈⢻⡀⠀⠀⠀⠀⠀⣀⣤⡴⠶⠞⠛⠛⠛⠛⠛⠻⠶⢶⣤⣀⠀⠀⠀⠀⠀⠀⣿⠃⠀⠀⠀⢸⡇⠀⠀⠀⠀
+⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠘⣷⡀⠀⣀⡴⢛⡉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⡛⢦⣄⠀⠀⣼⠇⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀
+⢰⡀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠈⠳⣾⣭⢤⣄⠘⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠃⢀⡤⣈⣷⠞⠃⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⡄
+⢸⢷⡀⠀⠈⣿⠀⠀⠀⠀⠀⠀⠀⠀⠈⢉⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡍⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠃⠀⠀⡜⡇
+⠈⣇⠱⣄⠀⠸⣧⠀⠀⠀⠀⠀⠄⣀⣀⣼⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢷⣀⣀⠠⠀⠀⠀⠀⠀⣰⠇⠀⢀⠞⢰⠃
+⠀⢿⠀⠈⢦⡀⠘⢷⣄⠀⢀⣀⡀⣀⡼⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢷⣀⣀⡀⢀⠀⣠⡼⠋⢀⡴⠁⠀⣹⠀
+⠀⠸⡄⠑⡀⠉⠢⣀⣿⠛⠒⠛⠛⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠛⠒⠋⢻⣀⠴⠋⢀⠄⢀⡇⠀
+⠀⠀⢣⠀⠈⠲⢄⣸⡇⠀⠀⠀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢔⠀⠀⠀⠘⣏⣀⠔⠁⠂⡸⠀⠀
+⠀⠀⠘⡄⠀⠀⠀⠉⢻⡄⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡾⠋⠀⠀⠀⢠⠇⠀⠀
+⠀⠀⠀⠙⢶⠀⠀⠀⢀⡿⠀⠤⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠤⠀⢾⡀⠀⠀⠀⡴⠎⠀⠀⠀
+⠀⠀⠀⠀⠀⠙⢦⡀⣸⠇⠀⠀⠀⠈⠹⡑⠲⠤⣀⡀⠀⠀⢸⠀⠀⠀⠀⠀⠀⠀⣀⡤⠖⢊⠍⠃⠀⠀⠀⠘⣧⢀⡤⠊⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠉⣿⠀⠀⠀⠀⠀⠀⠈⠒⢤⠤⠙⠗⠦⠼⠀⠀⠀⠠⠴⠺⠟⠤⡤⠔⠁⠀⠀⠀⠀⠀⠀⢸⠋⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠻⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠟⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢳⣄⠀⠀⡑⢯⡁⠀⠀⠀⠀⠀⠇⠀⠀⠀⠰⠀⠀⠀⠀⠀⢈⡩⢋⠀⠀⢠⡾⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⡆⠀⠈⠀⠻⢦⠀⠀⠀⡰⠀⠀⠀⠀⠀⢇⠀⠀⠀⡠⡛⠀⠁⠀⢰⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣇⠀⠀⠀⠀⢡⠑⠤⣀⠈⢢⠀⠀⠀⡴⠃⣀⠤⠊⡄⠀⠀⠀⠀⢸⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢶⣄⠀⠀⠀⠳⠀⢀⠉⠙⢳⠀⡜⠉⠁⡀⠀⠼⠀⠀⠀⣠⡴⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⣦⠀⠘⣆⠐⠐⠌⠂⠚⠀⠡⠊⠀⢠⠃⠀⣠⠞⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣧⠠⠈⠢⣄⡀⠀⠀⠀⢀⣀⠴⠃⠀⣴⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢦⡁⠐⠀⠈⠉⠁⠈⠁⠀⠒⢀⡴⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣦⠀⠀⠀⠀⠀⠀⠀⣰⠟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢧⣄⣀⣀⣀⣀⣼⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+"""
 
-def gradient_text(text, colors=GREEN_GRADIENT):
-    """Применяет градиент к тексту"""
-    result = ""
-    for i, char in enumerate(text):
-        color = colors[i % len(colors)]
-        result += color + char
-    return result + Style.RESET_ALL
+# ========== ЦВЕТА ==========
+GREEN1 = Fore.GREEN
+GREEN2 = Fore.LIGHTGREEN_EX
+GREEN3 = Fore.GREEN + Style.BRIGHT
+YELLOW = Fore.YELLOW
+RED = Fore.RED
+RESET = Style.RESET_ALL
 
-def print_gradient_banner():
-    """Печатает баннер с градиентом"""
-    banner = """
-    ⣿⣿⣿⣿⣿⣿⣿⣿⠿⠿⠿⠿⠿⠿⠿⠿⣿⣿⣿⣿⣿⣿⣿⣿
-    ⣿⣿⣿⡿⠋⠉⠁⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠉⠙⠿⣿⣿⣿
-    ⣿⣿⡏⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢹⣿⣿
-    ⣿⣿⠁⠄⣀⣤⣤⣄⣀⠄⠄⠄⠄⠄⠄⣀⣤⣤⣤⣄⠄⠄⢿⣿
-    ⣿⡇⠄⠚⠉⠛⠿⢿⣿⣷⡄⠄⠄⢠⣾⣿⡿⠿⠛⠉⠓⠄⢸⣿
-    ⣿⡇⠄⠄⠄⣀⣀⠄⠙⣿⡅⠄⠄⢨⡿⠋⠄⣀⣀⠄⠄⠄⢸⣿
-    ⣿⡇⢀⣴⣿⣿⣿⣿⣶⣼⣷⠄⠄⠈⢠⣶⣿⣿⣿⣿⣦⣀⣸⣿
-    ⣿⡇⠘⠋⠉⠉⠉⠁⠄⢸⣿⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⢸⣿
-    ⣿⣿⡄⠄⠄⠄⠄⠄⠄⣾⣿⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⠄⣼⣿
-    ⣿⣿⡽⣦⣤⠤⠤⠄⣾⢿⣿⠄⠄⠄⠳⡄⠠⠤⣤⣤⣴⢿⣿⣿
-    ⣿⣿⣧⣻⣽⣦⣄⠄⠉⠸⡇⠄⠄⡀⠄⠁⠄⢀⣾⢏⡟⣼⣿⣿
-    ⣿⣿⣿⣧⡹⣿⠿⢿⣷⣿⣿⠟⢿⣿⣶⣶⣾⠿⣿⡟⣼⣿⣿⣿
-    ⣿⣿⣿⣿⣧⡘⢿⣦⡈⡉⠉⠛⠒⠋⠉⠉⠁⣠⢏⣼⣿⣿⣿⣿
-    ⣿⣿⣿⣿⣿⣷⡘⢿⠄⠁⠙⣿⣿⠂⠄⠄⡴⢃⣾⣿⣿⣿⣿⣿
-    ⣿⣿⣿⣿⣿⣿⣿⣎⠄⠄⢰⣿⣿⠄⠄⠄⣠⣿⣿⣿⣿⣿⣿⣿
-    """
-    print(gradient_text(banner))
-    print(gradient_text("🔥 DOX BAR — OSINT TOOL (GITHUB CSV)"))
+# ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
+csv_data = []  # Сюда загружаются данные из CSV
+
+def loading_animation(text="Загрузка", duration=1.5):
+    """Красивая анимация загрузки"""
+    chars = "⣾⣽⣻⢿⡿⣟⣯⣷"
+    for i in range(duration * 10):
+        for char in chars:
+            sys.stdout.write(f"\r{GREEN2}{text} {char} {GREEN1}{'█' * (i % 10)}")
+            sys.stdout.flush()
+            time.sleep(0.03)
     print()
 
-def print_menu():
-    """Печатает меню с градиентом"""
-    menu_items = [
-        "1. Поиск по номеру",
-        "2. Поиск по юзернейму",
-        "3. Поиск по фото (имитация)",
-        "4. Добавить запись в CSV",
-        "5. Показать всю базу",
-        "0. Назад к командам"
-    ]
+def print_ascii():
+    """Печатает твой ASCII-арт"""
+    lines = YOUR_ASCII.split('\n')
+    colors = [GREEN1, GREEN2, GREEN3, GREEN2]
     
-    for i, item in enumerate(menu_items):
-        if i == 0:
-            print(GREEN_GRADIENT[1] + "╔══════════════════════════╗")
-        color = GREEN_GRADIENT[i % len(GREEN_GRADIENT)]
-        print(color + f"║ {item:<24} ║")
-        if i == len(menu_items) - 1:
-            print(GREEN_GRADIENT[1] + "╚══════════════════════════╝")
-        else:
-            print(GREEN_GRADIENT[1] + "╟──────────────────────────╢")
+    for i, line in enumerate(lines):
+        color = colors[i % len(colors)]
+        print(color + line)
+    print(RESET)
 
-def download_csv_from_github():
-    """Скачивает CSV с GitHub и возвращает список словарей"""
+def load_csv_from_url():
+    """Загружает CSV по ссылке из переменной MY_CSV_URL"""
+    global csv_data
     try:
-        print(Fore.YELLOW + "🔄 Загружаем базу данных с GitHub...")
-        response = requests.get(GITHUB_CSV_URL)
+        print(YELLOW + f"🔗 Загружаем: {MY_CSV_URL}")
+        loading_animation("Загрузка CSV", 2)
+        
+        # Проверяем, что ссылка заканчивается на .csv
+        if not MY_CSV_URL.lower().endswith('.csv'):
+            print(RED + "❌ Ссылка должна вести на .csv файл!")
+            return False
+        
+        response = requests.get(MY_CSV_URL)
         response.raise_for_status()
-        content = response.text
+        
+        # Пробуем разные кодировки
+        try:
+            content = response.content.decode('utf-8')
+        except:
+            try:
+                content = response.content.decode('cp1251')
+            except:
+                content = response.content.decode('latin-1')
+        
         reader = csv.DictReader(StringIO(content))
-        data = list(reader)
-        print(Fore.GREEN + f"✅ Загружено {len(data)} записей с GitHub")
-        return data
+        csv_data = list(reader)
+        
+        print(GREEN2 + f"✅ Загружено {len(csv_data)} записей")
+        print(GREEN1 + f"📋 Колонки: {', '.join(reader.fieldnames)}")
+        return True
+        
+    except requests.exceptions.RequestException as e:
+        print(RED + f"❌ Ошибка загрузки: {e}")
+        return False
     except Exception as e:
-        print(Fore.RED + f"❌ Ошибка загрузки CSV: {e}")
-        return []
+        print(RED + f"❌ Ошибка чтения CSV: {e}")
+        return False
 
-def save_to_csv(data):
-    """Сохраняет данные обратно в CSV"""
-    try:
-        with open('doxbar_local.csv', 'w', newline='', encoding='utf-8') as f:
-            if data:
-                writer = csv.DictWriter(f, fieldnames=data[0].keys())
-                writer.writeheader()
-                writer.writerows(data)
-        print(Fore.GREEN + "✅ Данные сохранены в doxbar_local.csv")
-    except Exception as e:
-        print(Fore.RED + f"❌ Ошибка сохранения: {e}")
-
-def search_in_csv(data, search_term, field="phone"):
-    """Ищет запись по полю (phone или username)"""
-    results = []
-    for row in data:
-        if row.get(field, "").lower() == search_term.lower():
-            results.append(row)
-    return results
-
-def print_result(result):
-    """Печатает результат с градиентом"""
-    print(gradient_text("\n" + "═" * 50))
-    print(gradient_text(f"👤 Имя: {result.get('fullname', '—')}"))
-    print(gradient_text(f"📞 Телефон: {result.get('phone', '—')}"))
-    print(gradient_text(f"🌐 Username: {result.get('username', '—')}"))
-    print(gradient_text(f"📍 Адрес: {result.get('address', '—')}"))
-    print(gradient_text(f"🔗 Соцсети: {result.get('social_links', '—')}"))
-    print(gradient_text(f"📝 Комментарий: {result.get('comment', '—')}"))
-    print(gradient_text("═" * 50))
-
-def search_by_number(data):
+def search_by_number():
+    """Поиск по номеру телефона"""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_gradient_banner()
+    print_ascii()
     
-    number = input(gradient_text("Введите номер (+79161234567): ")).strip()
-    results = search_in_csv(data, number, field="phone")
+    number = input(GREEN2 + "Введите номер (+79161234567): ").strip()
     
-    if results:
-        print(gradient_text("\n✅ Найдено в базе:"))
-        for r in results:
-            print_result(r)
-    else:
-        print(Fore.RED + "❌ В базе не найдено.")
+    # Поиск в CSV
+    found = False
+    for row in csv_data:
+        if row.get('phone', '').strip() == number:
+            print(GREEN1 + "\n✅ Найдено в CSV:")
+            for key, value in row.items():
+                print(GREEN2 + f"{key}: {value}")
+            found = True
+            break
     
-    # Доп. инфо через библиотеку
+    if not found:
+        print(YELLOW + "ℹ️ В CSV не найдено, ищем через библиотеку...")
+    
+    # Поиск через библиотеку phonenumbers
     try:
         parsed = phonenumbers.parse(number)
         loc = geocoder.description_for_number(parsed, "ru")
         oper = carrier.name_for_number(parsed, "ru")
         tz = timezone.time_zones_for_number(parsed)
-        print(gradient_text("\n📡 Дополнительная информация:"))
-        print(gradient_text(f"📍 Регион: {loc}"))
-        print(gradient_text(f"📡 Оператор: {oper}"))
-        print(gradient_text(f"🕒 Часовой пояс: {tz}"))
+        
+        print(GREEN1 + "\n📡 Данные оператора:")
+        print(GREEN2 + f"📍 Страна/регион: {loc}")
+        print(GREEN2 + f"📡 Оператор: {oper}")
+        print(GREEN2 + f"🕒 Часовой пояс: {tz}")
     except:
-        print(Fore.YELLOW + "⚠️ Не удалось получить данные через библиотеку.")
+        print(RED + "❌ Не удалось получить данные через библиотеку")
 
-def search_by_username(data):
+def search_by_username():
+    """Поиск по юзернейму"""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_gradient_banner()
+    print_ascii()
     
-    username = input(gradient_text("Введите username (без @): ")).strip()
-    results = search_in_csv(data, username, field="username")
+    username = input(GREEN2 + "Введите username (без @): ").strip()
     
-    if results:
-        print(gradient_text("\n✅ Найдено в базе:"))
-        for r in results:
-            print_result(r)
-    else:
-        print(Fore.RED + "❌ В базе не найдено.")
+    found = False
+    for row in csv_data:
+        if row.get('username', '').strip().lower() == username.lower():
+            print(GREEN1 + "\n✅ Найдено в CSV:")
+            for key, value in row.items():
+                print(GREEN2 + f"{key}: {value}")
+            found = True
+            break
+    
+    if not found:
+        print(YELLOW + "❌ В CSV не найдено")
 
 def search_by_photo():
+    """Имитация поиска по фото"""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_gradient_banner()
+    print_ascii()
     
-    print(gradient_text("🔍 Поиск по фото (имитация)"))
-    print(gradient_text("📸 В разработке..."))
+    print(GREEN2 + "🔍 Поиск по фото (имитация)")
+    loading_animation("Поиск по фото", 2)
+    print(YELLOW + "📸 Функция в разработке")
+    print(GREEN1 + "⚡ Скоро будет доступна")
 
-def add_record(data):
+def show_all_data():
+    """Показать все загруженные данные"""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_gradient_banner()
+    print_ascii()
     
-    print(gradient_text("➕ Добавление новой записи"))
-    
-    new_record = {
-        'phone': input(gradient_text("Телефон: ")).strip(),
-        'username': input(gradient_text("Username: ")).strip(),
-        'fullname': input(gradient_text("Полное имя: ")).strip(),
-        'address': input(gradient_text("Адрес: ")).strip(),
-        'social_links': input(gradient_text("Соцсети: ")).strip(),
-        'comment': input(gradient_text("Комментарий: ")).strip()
-    }
-    
-    data.append(new_record)
-    save_to_csv(data)
-    print(gradient_text("✅ Запись добавлена!"))
-
-def show_all(data):
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print_gradient_banner()
-    
-    if not data:
-        print(Fore.RED + "❌ База пуста")
+    if not csv_data:
+        print(RED + "❌ Нет загруженных данных")
         return
     
-    print(gradient_text(f"📊 Всего записей: {len(data)}"))
-    for i, row in enumerate(data, 1):
-        print(gradient_text(f"\n--- Запись {i} ---"))
-        print(gradient_text(f"📞 {row.get('phone', '—')}"))
-        print(gradient_text(f"👤 {row.get('fullname', '—')}"))
-        print(gradient_text(f"🌐 @{row.get('username', '—')}"))
+    print(GREEN1 + f"📊 Всего записей: {len(csv_data)}")
+    print(GREEN2 + "-" * 50)
+    
+    for i, row in enumerate(csv_data, 1):
+        print(GREEN3 + f"Запись {i}:")
+        for key, value in row.items():
+            if value:
+                print(GREEN2 + f"  {key}: {value}")
+        print(GREEN1 + "-" * 30)
 
 def main():
+    global csv_data
+    
     os.system('cls' if os.name == 'nt' else 'clear')
+    print_ascii()
     
-    # Загружаем базу с GitHub
-    db_data = download_csv_from_github()
-    
-    if not db_data:
-        print(Fore.RED + "❌ Не удалось загрузить базу. Проверь ссылку.")
-        input(Fore.YELLOW + "Нажми Enter для выхода...")
-        return
+    # Автоматически загружаем CSV при старте
+    print(YELLOW + "🔄 Автоматическая загрузка CSV...")
+    if load_csv_from_url():
+        print(GREEN2 + "✅ CSV успешно загружен")
+    else:
+        print(RED + "❌ Не удалось загрузить CSV. Проверь ссылку в переменной MY_CSV_URL")
+        input(YELLOW + "Нажми Enter для продолжения...")
     
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_gradient_banner()
-        print_menu()
+        print_ascii()
         
-        choice = input(gradient_text("\nВыбери опцию: ")).strip()
+        print(GREEN1 + "╔" + "═" * 50 + "╗")
+        print(GREEN2 + "║" + " " * 15 + "DOX BAR — МЕНЮ" + " " * 16 + "║")
+        print(GREEN3 + "╠" + "═" * 50 + "╣")
+        print(GREEN1 + "║  1. Поиск по номеру телефона        ║")
+        print(GREEN2 + "║  2. Поиск по юзернейму              ║")
+        print(GREEN3 + "║  3. Поиск по фото (имитация)        ║")
+        print(GREEN1 + "║  4. Показать все данные             ║")
+        print(GREEN2 + "║  5. Перезагрузить CSV               ║")
+        print(GREEN3 + "║  0. Выход                            ║")
+        print(GREEN1 + "╚" + "═" * 50 + "╝")
+        print(GREEN2 + f"📁 CSV записей: {len(csv_data)}")
+        print()
+        
+        choice = input(GREEN2 + "Выбери пункт: ").strip()
         
         if choice == "1":
-            search_by_number(db_data)
+            search_by_number()
         elif choice == "2":
-            search_by_username(db_data)
+            search_by_username()
         elif choice == "3":
             search_by_photo()
         elif choice == "4":
-            add_record(db_data)
+            show_all_data()
         elif choice == "5":
-            show_all(db_data)
+            load_csv_from_url()
         elif choice == "0":
-            print(gradient_text("👋 Выход..."))
+            print(GREEN3 + "👋 Выход...")
             break
         else:
-            print(Fore.RED + "❌ Неверный ввод.")
+            print(RED + "❌ Неверный выбор")
         
-        input(gradient_text("\nНажми Enter, чтобы продолжить..."))
+        input(GREEN2 + "\nНажми Enter, чтобы продолжить...")
 
 if __name__ == "__main__":
     main()
